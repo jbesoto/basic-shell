@@ -1,0 +1,110 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+shell
+*.exe
+*.out
+*.app
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.ko
+*.mod.*
+
+# Dependency files
+*.d
+
+# Linker script
+*.ld
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Folders
+bin/
+obj/
+build/
+temp/
+
+# Visual Studio Code
+.vscode/
+
+# Misc
+*.log
+*.tlog
+*.lof
+*.lot
+*.fls
+*.out
+*.nav
+*.snm
+*.toc
+*.aux
+*.idx
+*.ind
+*.ilg
+*.log
+*.blg
+*.bbl
+*.brf
+*.cb
+*.ind
+*.idx
+*.ilg
+*.inx
+*.synctex.gz
+*.fdb_latexmk
+
+# Backup & Others
+*.bak
+*~.nib
+local.properties
+.directory
+.svn/
+*.swp
+*.swo
+*.swn
+*.swh
+*.swm
+*.mtl
+*.dat
+*.aps
+*.ncb
+*.plg
+*.bsc
+*.ilk
+*.exp
