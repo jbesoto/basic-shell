@@ -21,6 +21,12 @@ int main(void) {
       exit(EXIT_FAILURE);
     }
     cmdline[strlen(cmdline) - 1] = '\0';
+
+    DynamicArray *da_args = TokenizeCommandLine(cmdline);
+    if (!da_args) {
+      PrintError("Failed to tokenize command line: %s\n", strerror(errno));
+      continue;
+    }
   }
 
   return EXIT_SUCCESS;
@@ -71,13 +77,35 @@ void ExpandPromptString(void) {
   fflush(stdout);
 }
 
+// This implementation does not treat text wrapped in quotes as single token
+DynamicArray *TokenizeCommandLine(char *cmdline) {
+  DynamicArray *da_tokens = InitDynamicArray(kDefaultArraySize, sizeof(char *));
+  if (!da_tokens) {
+    return NULL;
+  }
+
+  for (;; cmdline = NULL) {
+    char *token = strtok(cmdline, " ");
+    if (!token) {
+      break;
+    }
+
+    if (AppendElement(da_tokens, token) < 0) {
+      FreeDynamicArray(da_tokens);
+      return NULL;
+    }
+  }
+
+  return da_tokens;
+}
+
 void _PrintError(const char *func, int line, const char *format, ...) {
   va_list args;
   va_start(args, format);
 
   fprintf(stderr, "[%s: %d] shell: ", func, line);
   vfprintf(stderr, format, args);
-  
+
   va_end(args);
 }
 
@@ -96,8 +124,8 @@ void _PrintError(const char *func, int line, const char *format, ...) {
  *
  * @note Allocated dynamic array can be freed using `FreeDynamicArray()`.
  */
-DynamicArray* InitDynamicArray(size_t size, size_t type_size) {
-  DynamicArray* da = malloc(sizeof(DynamicArray));
+DynamicArray *InitDynamicArray(size_t size, size_t type_size) {
+  DynamicArray *da = malloc(sizeof(DynamicArray));
   if (!da) {
     return NULL;
   }
@@ -121,7 +149,7 @@ DynamicArray* InitDynamicArray(size_t size, size_t type_size) {
  *
  * @param da Pointer to the dynamic array to be freed.
  */
-void FreeDynamicArray(DynamicArray* da) {
+void FreeDynamicArray(DynamicArray *da) {
   if (da) {
     if (da->data) {
       free(da->data);
@@ -142,7 +170,7 @@ void FreeDynamicArray(DynamicArray* da) {
  * @return 0 if the element is successfully added. Otherwise, returns -1 if
  *         dynamic array cannot be resized and `errno` is set appropriately.
  */
-int AppendElement(DynamicArray* da, void* elem) {
+int AppendElement(DynamicArray *da, void *elem) {
   if (da->size == da->len) {
     if (!ResizeDynamicArray(da, da->size * 2)) {
       return -1;
@@ -150,7 +178,7 @@ int AppendElement(DynamicArray* da, void* elem) {
     da->size *= 2;
   }
   // Using char* enables copying byte-to-byte
-  memcpy((char*)da->data + (da->len * da->type_size), elem, da->type_size);
+  memcpy((char *)da->data + (da->len * da->type_size), elem, da->type_size);
   da->len++;
 
   return 0;
@@ -168,8 +196,8 @@ int AppendElement(DynamicArray* da, void* elem) {
  * @return 0 if the dynamic array was successfully resized. On error, -1 is
  *         returned and `errno` is set appropriately,
  */
-int ResizeDynamicArray(DynamicArray* da, size_t new_size) {
-  void* resized_data = reallocarray(da->data, new_size, da->type_size);
+int ResizeDynamicArray(DynamicArray *da, size_t new_size) {
+  void *resized_data = reallocarray(da->data, new_size, da->type_size);
   if (!resized_data) {
     return -1;
   }

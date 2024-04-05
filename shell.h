@@ -19,6 +19,7 @@ typedef struct {
   size_t type_size;
 } DynamicArray;
 
+const size_t kDefaultArraySize = 16;
 const size_t kInputMax = 1024;
 const size_t kPathMax = 512;
 const char *kPromptString = "\\u@\\h : \\b\n";
@@ -27,6 +28,7 @@ const unsigned int kRootUID = 0;
 
 // Shell Functions
 void ExpandPromptString(void);
+DynamicArray *TokenizeCommandLine(char *cmdline);
 
 // Dynamic Array Methods
 int AppendElement(DynamicArray* da, void* elem);
