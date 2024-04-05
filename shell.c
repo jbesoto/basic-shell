@@ -12,3 +12,13 @@
 int main(void) {
   return 0; 
 }
+
+void _PrintError(const char *func, int line, const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+
+  fprintf(stderr, "[%s: %d] shell: ", func, line);
+  vfprintf(stderr, format, args);
+  
+  va_end(args);
+}
