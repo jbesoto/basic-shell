@@ -58,6 +58,44 @@ int main(void) {
       exit(status);
     }
 
+    pid_t pid = fork();
+    if (pid < 0) {
+      FreeDynamicArray(da_args);
+      PrintError("fork failed: %s\n", strerror(errno));
+      status = 1;
+      continue;
+    } else if (pid == 0) {
+      // TODO: Add signal handler for cleaning up process since atexit does
+      //       not execute functions if process terminates due to a signal
+      Process *proc = InitProcess();
+      if (!proc) {
+        FreeDynamicArray(da_args);
+        PrintError("failed to initialize process: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+      }
+
+      // TODO: Add atexit(CleanupResources)
+
+      if (ParseCommand(proc, da_args) < 0) {
+        free(proc);
+        FreeDynamicArray(da_args);
+        exit(EXIT_FAILURE);
+      }
+
+      CleanupRedirection(proc);
+      free(proc);
+      FreeDynamicArray(da_args);
+      exit(EXIT_SUCCESS);
+    } else {
+      int wstatus;
+      if (waitpid(pid, &wstatus, 0) < 0) {
+        FreeDynamicArray(da_args);
+        PrintError("wait failed: %s\n", strerror(errno));
+        continue;
+      }
+      status = wstatus;  // TODO: Requirement 4
+    }
+
 next_command:
     FreeDynamicArray(da_args);
   }
@@ -128,6 +166,110 @@ DynamicArray *TokenizeCommandLine(char *cmdline) {
   }
 
   return da_tokens;
+}
+
+int ParseCommand(Process *proc, DynamicArray *da_args) {
+  if (da_args->len == 0) {
+    proc->cmd = "";
+    proc->args = NULL;
+    return 0;
+  }
+
+  char **args = (char **)da_args->data;
+  for (size_t i = 0; i < da_args->len; i++) {
+    RedirectType rtype = GetRedirectType(args[i]);
+    if (rtype == kNone) {
+      continue;
+    }
+
+    if (i + 1 >= da_args->len) {
+      PrintError("missing redirection target\n");
+      return -1;
+    }
+
+    int newfd;
+    char *pathname = args[i + 1];
+    switch (rtype) {
+      case kRedirectIn:
+        if ((newfd = open(pathname, O_RDONLY)) < 0) {
+          PrintError("failed open: %s: %s\n", pathname, strerror(errno));
+          return -1;
+        }
+        if (SetupRedirection(proc, newfd, rtype) < 0) {
+          close(newfd);
+          PrintError("failed redirection: '<': %s\n", strerror(errno));
+          return -1;
+        }
+        break;
+
+      case kRedirectOut:
+        if ((newfd = open(pathname, O_CREAT | O_TRUNC | O_WRONLY, 0664)) < 0) {
+          PrintError("failed open: %s: %s\n", pathname, strerror(errno));
+          return -1;
+        }
+        if (SetupRedirection(proc, newfd, rtype) < 0) {
+          close(newfd);
+          PrintError("failed redirection: '>': %s\n", strerror(errno));
+          return -1;
+        }
+        break;
+
+      case kRedirectAppend:
+        if ((newfd = open(pathname, O_CREAT | O_TRUNC | O_APPEND, 0664)) < 0) {
+          PrintError("failed open: %s: %s\n", pathname, strerror(errno));
+          return -1;
+        }
+        if (SetupRedirection(proc, newfd, rtype) < 0) {
+          close(newfd);
+          PrintError("failed redirection: '>>': %s\n", strerror(errno));
+          return -1;
+        }
+        break;
+
+      case kRedirectErr:
+        if ((newfd = open(pathname, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0) {
+          PrintError("failed open: %s: %s\n", pathname, strerror(errno));
+          return -1;
+        }
+        if (SetupRedirection(proc, newfd, rtype) < 0) {
+          close(newfd);
+          PrintError("failed redirection: '2>': %s\n", strerror(errno));
+          return -1;
+        }
+        break;
+
+      case kRedirectOutErr:
+        if ((newfd = open(pathname, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0) {
+          PrintError("failed open: %s: %s\n", pathname, strerror(errno));
+          return -1;
+        }
+        if (SetupRedirection(proc, newfd, rtype) < 0) {
+          close(newfd);
+          PrintError("failed redirection: '&>': %s\n", strerror(errno));
+          return -1;
+        }
+        break;
+
+      case kNone:
+        continue;
+    }
+    close(newfd);
+
+    // Remove current redirection operator and target file
+    for (size_t count = 0; count < 2; count++) {
+      for (size_t j = i; j < da_args->len - 1; j++) {
+        args[j] = args[j + 1];
+      }
+      args[da_args->len - 1] = NULL;
+      da_args->len--;
+    }
+    i--;  // Avoid skipping next redirection operator (if any)
+  }
+
+  proc->cmd = args[0];
+  proc->args = args;
+
+  return 0;
 }
 
 Process *InitProcess(void) {
