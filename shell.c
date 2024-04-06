@@ -22,8 +22,13 @@ int main(void) {
       PrintError("%s\n", strerror(errno));
       continue;
     }
+    
     // Remove newline character
     cmdline[strlen(cmdline) - 1] = '\0';
+
+    if (*cmdline == '\0') {
+      continue;
+    }
 
     DynamicArray *da_args = TokenizeCommandLine(cmdline);
     if (!da_args) {
@@ -47,6 +52,8 @@ int main(void) {
         status = 1;
         continue;
       }
+      FreeDynamicArray(da_args);
+      continue;
     } else if (strcmp(args[0], "exit") == 0) {
       FreeDynamicArray(da_args);
       exit(status);
