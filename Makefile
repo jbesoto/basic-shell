@@ -1,9 +1,9 @@
 CC=gcc
 CFLAGS=-g3 -Wall -Wextra -Werror -fsanitize=address,undefined
 
-all: shell
+all: bin/shell
 
-shell: shell.c shell.h
+bin/shell: shell.c shell.h
 	$(CC) $(CFLAGS) shell.c -o bin/shell
 
 clean:
