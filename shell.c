@@ -9,27 +9,52 @@
 
 #include "shell.h"
 
+int status = 0;
+
 int main(void) {
   char cmdline[kInputMax];
   char *ps1 = getenv("PS1");
 
   while (1) {
-    ps1 ? printf("%s", ps1) : ExpandPromptString();
+    ps1 ? printf("%s ", ps1) : ExpandPromptString();
 
     if (!fgets(cmdline, kInputMax, stdin)) {
       PrintError("%s\n", strerror(errno));
-      exit(EXIT_FAILURE);
+      continue;
     }
+    // Remove newline character
     cmdline[strlen(cmdline) - 1] = '\0';
 
     DynamicArray *da_args = TokenizeCommandLine(cmdline);
     if (!da_args) {
-      PrintError("Failed to tokenize command line: %s\n", strerror(errno));
+      PrintError("failed to tokenize command line: %s\n", strerror(errno));
       continue;
     }
-  }
 
-  return EXIT_SUCCESS;
+    char **args = (char **)da_args->data;
+    if (strcmp(args[0], "cd") == 0) {
+      if (da_args->len < 2) {
+        fprintf(stderr, "cd: missing operand\n");
+        FreeDynamicArray(da_args);
+        status = 1;
+        continue;
+      }
+      
+      char* pathname = args[1];
+      if (chdir(pathname) < 0) {
+        fprintf(stderr, "cd: %s: %s\n", strerror(errno), pathname);
+        FreeDynamicArray(da_args);
+        status = 1;
+        continue;
+      }
+    }
+    else if (strcmp(args[0], "exit") == 0) {
+      FreeDynamicArray(da_args);
+      exit(status);
+    }
+
+    FreeDynamicArray(da_args);
+  }
 }
 
 void ExpandPromptString(void) {
