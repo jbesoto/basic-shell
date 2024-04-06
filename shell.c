@@ -268,6 +268,7 @@ int ParseCommand(Process *proc, DynamicArray *da_args) {
 
   proc->cmd = args[0];
   proc->args = args;
+  proc->args[da_args->len] = NULL; 
 
   return 0;
 }
