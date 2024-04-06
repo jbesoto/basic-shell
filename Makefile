@@ -1,10 +1,10 @@
 CC=gcc
 CFLAGS=-g3 -Wall -Wextra -Werror -fsanitize=address,undefined
 
-all: bin/shell
+all: shell
 
-bin/shell: shell.c shell.h
-	$(CC) $(CFLAGS) shell.c -o bin/shell
+shell: shell.c shell.h
+	$(CC) $(CFLAGS) -o shell shell.c
 
 clean:
 	rm -f bin/*
