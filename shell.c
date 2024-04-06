@@ -226,12 +226,13 @@ void FreeDynamicArray(DynamicArray *da) {
  *         dynamic array cannot be resized and `errno` is set appropriately.
  */
 int AppendElement(DynamicArray *da, void *elem) {
-  if (da->size == da->len) {
+  if (da->size >= da->len) {
     if (!ResizeDynamicArray(da, da->size * 2)) {
       return -1;
     }
     da->size *= 2;
   }
+
   // Using char* enables copying byte-to-byte
   memcpy((char *)da->data + (da->len * da->type_size), elem, da->type_size);
   da->len++;
