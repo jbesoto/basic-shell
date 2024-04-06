@@ -159,6 +159,122 @@ init_proc_error:
   return NULL;
 }
 
+int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
+  if (!proc) {
+    return 0;
+  }
+
+  switch (rtype) {
+    case kRedirectIn:
+      if ((proc->stdin = dup2(newfd, STDIN_FILENO)) < 0) {
+        goto redirect_error;
+      }
+      break;
+
+    case kRedirectAppend:
+    case kRedirectOut:
+      if ((proc->stdout = dup2(newfd, STDOUT_FILENO)) < 0) {
+        goto redirect_error;
+      }
+      break;
+
+    case kRedirectErr:
+      if ((proc->stderr = dup2(newfd, STDERR_FILENO)) < 0) {
+        goto redirect_error;
+      }
+      break;
+
+    case kRedirectOutErr:
+      if ((proc->stdout = dup2(newfd, STDOUT_FILENO)) < 0) {
+        goto redirect_error;
+      }
+      if ((proc->stderr = dup2(newfd, STDERR_FILENO)) < 0) {
+        goto redirect_error;
+      }
+      break;
+
+    default:
+      break;
+  }
+
+  return 0;
+
+redirect_error:
+  if (CleanupRedirection(proc) < 0) {
+    PrintError("failed to cleanup redirection: %s\n", strerror(errno));
+    free(proc);
+    exit(EXIT_FAILURE);
+  }
+  return -1;
+}
+
+RedirectType GetRedirectType(const char *op) {
+  if (strcmp(op, "<") == 0) {
+    return kRedirectIn;
+  }
+  if (strcmp(op, ">") == 0 || strcmp(op, "1>") == 0) {
+    return kRedirectOut;
+  }
+  if (strcmp(op, ">>") == 0) {
+    return kRedirectAppend;
+  }
+  if (strcmp(op, "2>") == 0) {
+    return kRedirectErr;
+  }
+  if (strcmp(op, "&>") == 0) {
+    return kRedirectOutErr;
+  }
+
+  return kNone;
+}
+
+int CleanupRedirection(Process *proc) {
+  if (!proc) {
+    return 0;
+  }
+
+  // Close redirected streams
+  if (proc->stdin >= 0) {
+    close(proc->stdin);
+    proc->stdin = -1;
+  }
+  if (proc->stdout >= 0) {
+    close(proc->stdout);
+    proc->stdout = -1;
+  }
+  if (proc->stderr >= 0) {
+    close(proc->stderr);
+    proc->stderr = -1;
+  }
+
+  // Restore original standard streams
+  if (proc->o_stdin >= 0) {
+    if (dup2(proc->o_stdin, STDIN_FILENO) < 0) {
+      return -1;
+    }
+    close(proc->o_stdin);
+    proc->o_stdin = -1;
+  }
+
+  if (proc->o_stdout >= 0) {
+    if (dup2(proc->o_stdout, STDOUT_FILENO) < 0) {
+      return -1;
+    }
+    close(proc->o_stdout);
+    proc->o_stdout = -1;
+  }
+
+  if (proc->o_stderr >= 0) {
+    if (dup2(proc->o_stderr, STDERR_FILENO) < 0) {
+      return -1;
+    }
+    close(proc->o_stderr);
+    proc->o_stderr = -1;
+  }
+
+  return 0;
+}
+
 void _PrintError(const char *func, int line, const char *format, ...) {
   va_list args;
   va_start(args, format);
