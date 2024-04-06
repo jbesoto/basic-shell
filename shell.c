@@ -344,8 +344,8 @@ void FreeDynamicArray(DynamicArray *da) {
  *         dynamic array cannot be resized and `errno` is set appropriately.
  */
 int AppendElement(DynamicArray *da, void *elem) {
-  if (da->size >= da->len) {
-    if (!ResizeDynamicArray(da, da->size * 2)) {
+  if (da->len >= da->size) {
+    if (ResizeDynamicArray(da, da->size * 2) < 0) {
       return -1;
     }
     da->size *= 2;
