@@ -39,16 +39,15 @@ int main(void) {
         status = 1;
         continue;
       }
-      
-      char* pathname = args[1];
+
+      char *pathname = args[1];
       if (chdir(pathname) < 0) {
         fprintf(stderr, "cd: %s: %s\n", strerror(errno), pathname);
         FreeDynamicArray(da_args);
         status = 1;
         continue;
       }
-    }
-    else if (strcmp(args[0], "exit") == 0) {
+    } else if (strcmp(args[0], "exit") == 0) {
       FreeDynamicArray(da_args);
       exit(status);
     }
@@ -122,6 +121,37 @@ DynamicArray *TokenizeCommandLine(char *cmdline) {
   }
 
   return da_tokens;
+}
+
+Process *InitProcess(void) {
+  Process *proc = malloc(sizeof(Process));
+  if (!proc) {
+    return NULL;
+  }
+
+  if ((proc->o_stdin = dup(STDIN_FILENO)) < 0) {
+    goto init_proc_error;
+  }
+  if ((proc->o_stdout = dup(STDOUT_FILENO)) < 0) {
+    close(proc->stdin);
+    goto init_proc_error;
+  }
+  if ((proc->o_stderr = dup(STDERR_FILENO)) < 0) {
+    close(proc->stdin);
+    close(proc->stdout);
+    goto init_proc_error;
+  }
+
+  // Mark standard streams as unredirected
+  proc->stdin = -1;
+  proc->stdout = -1;
+  proc->stderr = -1;
+
+  return proc;
+
+init_proc_error:
+  free(proc);
+  return NULL;
 }
 
 void _PrintError(const char *func, int line, const char *format, ...) {
