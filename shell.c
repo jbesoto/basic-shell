@@ -165,6 +165,7 @@ init_proc_error:
   return NULL;
 }
 
+// `newfd` for redirection is managed by the caller, who must close it after.
 int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
   if (!proc) {
     return 0;
@@ -172,6 +173,9 @@ int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
 
   switch (rtype) {
     case kRedirectIn:
+      if (proc->in_fd >= 0) {
+        close(proc->in_fd);
+      }
       if ((proc->in_fd = dup2(newfd, STDIN_FILENO)) < 0) {
         goto redirect_error;
       }
@@ -179,20 +183,33 @@ int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
 
     case kRedirectAppend:
     case kRedirectOut:
+      if (proc->out_fd >= 0) {
+        close(proc->out_fd);
+      }
       if ((proc->out_fd = dup2(newfd, STDOUT_FILENO)) < 0) {
         goto redirect_error;
       }
       break;
 
     case kRedirectErr:
+      if (proc->err_fd >= 0) {
+        close(proc->err_fd);
+      }
       if ((proc->err_fd = dup2(newfd, STDERR_FILENO)) < 0) {
         goto redirect_error;
       }
       break;
 
     case kRedirectOutErr:
+      if (proc->out_fd >= 0) {
+        close(proc->out_fd);
+      }
       if ((proc->out_fd = dup2(newfd, STDOUT_FILENO)) < 0) {
         goto redirect_error;
+      }
+
+      if (proc->err_fd >= 0) {
+        close(proc->err_fd);
       }
       if ((proc->err_fd = dup2(newfd, STDERR_FILENO)) < 0) {
         goto redirect_error;
