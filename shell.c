@@ -90,7 +90,7 @@ DynamicArray *TokenizeCommandLine(char *cmdline) {
       break;
     }
 
-    if (AppendElement(da_tokens, token) < 0) {
+    if (AppendElement(da_tokens, &token) < 0) {
       FreeDynamicArray(da_tokens);
       return NULL;
     }
