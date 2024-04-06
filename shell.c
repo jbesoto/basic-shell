@@ -128,28 +128,33 @@ Process *InitProcess(void) {
   if (!proc) {
     return NULL;
   }
+  
+  // Mark streams as unused
+  proc->o_stdin = proc->o_stdout = proc->o_stderr = -1;
+  proc->stdin = proc->stdout = proc->stderr = -1;
 
   if ((proc->o_stdin = dup(STDIN_FILENO)) < 0) {
     goto init_proc_error;
   }
   if ((proc->o_stdout = dup(STDOUT_FILENO)) < 0) {
-    close(proc->stdin);
     goto init_proc_error;
   }
   if ((proc->o_stderr = dup(STDERR_FILENO)) < 0) {
-    close(proc->stdin);
-    close(proc->stdout);
     goto init_proc_error;
   }
-
-  // Mark standard streams as unredirected
-  proc->stdin = -1;
-  proc->stdout = -1;
-  proc->stderr = -1;
 
   return proc;
 
 init_proc_error:
+  if (proc->o_stdin >= 0) {
+    close(proc->o_stdin);
+  }
+  if (proc->o_stdout >= 0) {
+    close(proc->o_stdout);
+  }
+  if (proc->o_stderr >= 0) {
+    close(proc->o_stderr);  // being extra careful
+  }
   free(proc);
   return NULL;
 }
