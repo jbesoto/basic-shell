@@ -201,8 +201,6 @@ int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
 redirect_error:
   if (CleanupRedirection(proc) < 0) {
     PrintError("failed to cleanup redirection: %s\n", strerror(errno));
-    free(proc);
-    exit(EXIT_FAILURE);
   }
   return -1;
 }
