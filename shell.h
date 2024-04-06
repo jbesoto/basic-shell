@@ -25,8 +25,8 @@ typedef struct {
 typedef struct {
   char *cmd;
   char **args;
-  int o_stdin, o_stdout, o_stderr;
-  int stdin, stdout, stderr;
+  int orig_stdin, orig_stdout, orig_stderr;
+  int in_fd, out_fd, err_fd;
 } Process;
 
 typedef enum {

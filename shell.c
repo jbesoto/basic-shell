@@ -128,32 +128,31 @@ Process *InitProcess(void) {
   if (!proc) {
     return NULL;
   }
-  
-  // Mark streams as unused
-  proc->o_stdin = proc->o_stdout = proc->o_stderr = -1;
-  proc->stdin = proc->stdout = proc->stderr = -1;
 
-  if ((proc->o_stdin = dup(STDIN_FILENO)) < 0) {
+  // Mark streams as unused
+  proc->in_fd = proc->out_fd = proc->err_fd = -1;
+
+  if ((proc->orig_stdin = dup(STDIN_FILENO)) < 0) {
     goto init_proc_error;
   }
-  if ((proc->o_stdout = dup(STDOUT_FILENO)) < 0) {
+  if ((proc->orig_stdout = dup(STDOUT_FILENO)) < 0) {
     goto init_proc_error;
   }
-  if ((proc->o_stderr = dup(STDERR_FILENO)) < 0) {
+  if ((proc->orig_stderr = dup(STDERR_FILENO)) < 0) {
     goto init_proc_error;
   }
 
   return proc;
 
 init_proc_error:
-  if (proc->o_stdin >= 0) {
-    close(proc->o_stdin);
+  if (proc->orig_stdin >= 0) {
+    close(proc->orig_stdin);
   }
-  if (proc->o_stdout >= 0) {
-    close(proc->o_stdout);
+  if (proc->orig_stdout >= 0) {
+    close(proc->orig_stdout);
   }
-  if (proc->o_stderr >= 0) {
-    close(proc->o_stderr);  // being extra careful
+  if (proc->orig_stderr >= 0) {
+    close(proc->orig_stderr);  // being extra careful
   }
   free(proc);
   return NULL;
@@ -166,29 +165,29 @@ int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
 
   switch (rtype) {
     case kRedirectIn:
-      if ((proc->stdin = dup2(newfd, STDIN_FILENO)) < 0) {
+      if ((proc->in_fd = dup2(newfd, STDIN_FILENO)) < 0) {
         goto redirect_error;
       }
       break;
 
     case kRedirectAppend:
     case kRedirectOut:
-      if ((proc->stdout = dup2(newfd, STDOUT_FILENO)) < 0) {
+      if ((proc->out_fd = dup2(newfd, STDOUT_FILENO)) < 0) {
         goto redirect_error;
       }
       break;
 
     case kRedirectErr:
-      if ((proc->stderr = dup2(newfd, STDERR_FILENO)) < 0) {
+      if ((proc->err_fd = dup2(newfd, STDERR_FILENO)) < 0) {
         goto redirect_error;
       }
       break;
 
     case kRedirectOutErr:
-      if ((proc->stdout = dup2(newfd, STDOUT_FILENO)) < 0) {
+      if ((proc->out_fd = dup2(newfd, STDOUT_FILENO)) < 0) {
         goto redirect_error;
       }
-      if ((proc->stderr = dup2(newfd, STDERR_FILENO)) < 0) {
+      if ((proc->err_fd = dup2(newfd, STDERR_FILENO)) < 0) {
         goto redirect_error;
       }
       break;
@@ -234,42 +233,42 @@ int CleanupRedirection(Process *proc) {
   }
 
   // Close redirected streams
-  if (proc->stdin >= 0) {
-    close(proc->stdin);
-    proc->stdin = -1;
+  if (proc->in_fd >= 0) {
+    close(proc->in_fd);
+    proc->in_fd = -1;
   }
-  if (proc->stdout >= 0) {
-    close(proc->stdout);
-    proc->stdout = -1;
+  if (proc->out_fd >= 0) {
+    close(proc->out_fd);
+    proc->out_fd = -1;
   }
-  if (proc->stderr >= 0) {
-    close(proc->stderr);
-    proc->stderr = -1;
+  if (proc->err_fd >= 0) {
+    close(proc->err_fd);
+    proc->err_fd = -1;
   }
 
   // Restore original standard streams
-  if (proc->o_stdin >= 0) {
-    if (dup2(proc->o_stdin, STDIN_FILENO) < 0) {
+  if (proc->orig_stdin >= 0) {
+    if (dup2(proc->orig_stdin, STDIN_FILENO) < 0) {
       return -1;
     }
-    close(proc->o_stdin);
-    proc->o_stdin = -1;
+    close(proc->orig_stdin);
+    proc->orig_stdin = -1;
   }
 
-  if (proc->o_stdout >= 0) {
-    if (dup2(proc->o_stdout, STDOUT_FILENO) < 0) {
+  if (proc->orig_stdout >= 0) {
+    if (dup2(proc->orig_stdout, STDOUT_FILENO) < 0) {
       return -1;
     }
-    close(proc->o_stdout);
-    proc->o_stdout = -1;
+    close(proc->orig_stdout);
+    proc->orig_stdout = -1;
   }
 
-  if (proc->o_stderr >= 0) {
-    if (dup2(proc->o_stderr, STDERR_FILENO) < 0) {
+  if (proc->orig_stderr >= 0) {
+    if (dup2(proc->orig_stderr, STDERR_FILENO) < 0) {
       return -1;
     }
-    close(proc->o_stderr);
-    proc->o_stderr = -1;
+    close(proc->orig_stderr);
+    proc->orig_stderr = -1;
   }
 
   return 0;
