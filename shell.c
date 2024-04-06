@@ -52,13 +52,13 @@ int main(void) {
         status = 1;
         continue;
       }
-      FreeDynamicArray(da_args);
-      continue;
+      goto next_command;
     } else if (strcmp(args[0], "exit") == 0) {
       FreeDynamicArray(da_args);
       exit(status);
     }
 
+next_command:
     FreeDynamicArray(da_args);
   }
 }
