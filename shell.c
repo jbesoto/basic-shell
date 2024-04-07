@@ -9,12 +9,12 @@
 
 #include "shell.h"
 
-int status = 0;
-
 int main(void) {
   char cmdline[kInputMax];
   char *ps1 = getenv("PS1");
 
+  int status = 0;
+  
   while (1) {
     ps1 ? printf("%s ", ps1) : ExpandPromptString();
 
@@ -72,7 +72,7 @@ int main(void) {
         exit(EXIT_FAILURE);
       }
 
-      if (ParseCommand(proc, da_args) < 0) {
+      if (ParseCommand(proc, da_args, status) < 0) {
         free(proc);
         FreeDynamicArray(da_args);
         exit(EXIT_FAILURE);
@@ -179,7 +179,7 @@ DynamicArray *TokenizeCommandLine(char *cmdline) {
   return da_tokens;
 }
 
-int ParseCommand(Process *proc, DynamicArray *da_args) {
+int ParseCommand(Process *proc, DynamicArray *da_args, int status) {
   if (da_args->len == 0) {
     proc->cmd = "";
     proc->args = NULL;
@@ -279,7 +279,7 @@ int ParseCommand(Process *proc, DynamicArray *da_args) {
 
   proc->cmd = args[0];
   if (strcmp(proc->cmd, "echo") == 0) {
-    ReplaceExitStatusVariable(da_args);
+    ReplaceExitStatusVariable(da_args, status);
   }
 
   proc->args = args;
@@ -454,13 +454,13 @@ int CleanupRedirection(Process *proc) {
   return 0;
 }
 
-void ReplaceExitStatusVariable(DynamicArray* da) {
-  char** args = (char**)da->data;
+void ReplaceExitStatusVariable(DynamicArray* da_args, int status) {
+  char** args = (char**)da_args->data;
   char status_str[12];
 
   sprintf(status_str, "%d", status);
 
-  for (size_t i = 0; i < da->len; i++) {
+  for (size_t i = 0; i < da_args->len; i++) {
     if (strcmp(args[i], "$?") == 0) {
       strcpy(args[i], status_str);
     }

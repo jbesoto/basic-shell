@@ -47,12 +47,14 @@ const size_t kHostnameMax = 64;
 const unsigned int kRootUID = 0;
 
 // Shell Functions
-void ExpandPromptString(void);
-Process *InitProcess(void);
-DynamicArray *TokenizeCommandLine(char *cmdline);
-int SetupRedirection(Process *proc, int newfd, RedirectType rtype);
-RedirectType GetRedirectType(const char *op);
 int CleanupRedirection(Process *proc);
+void ExpandPromptString(void);
+RedirectType GetRedirectType(const char *op);
+Process *InitProcess(void);
+int ParseCommand(Process *proc, DynamicArray *da_args, int status);
+void ReplaceExitStatusVariable(DynamicArray* da_args, int status);
+int SetupRedirection(Process *proc, int newfd, RedirectType rtype);
+DynamicArray *TokenizeCommandLine(char *cmdline);
 
 // Dynamic Array Methods
 int AppendElement(DynamicArray *da, void *elem);
