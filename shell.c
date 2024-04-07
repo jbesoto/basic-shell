@@ -97,7 +97,14 @@ int main(void) {
         PrintError("wait failed: %s\n", strerror(errno));
         continue;
       }
-      status = wstatus;  // TODO: Requirement 4
+
+      if (WIFEXITED(wstatus)) {
+        status = WEXITSTATUS(wstatus);
+      } else if (WIFSIGNALED(wstatus)) {
+        status = 128 + WTERMSIG(wstatus);
+      } else {
+        status = wstatus;
+      }
     }
 
 next_command:
@@ -271,6 +278,10 @@ int ParseCommand(Process *proc, DynamicArray *da_args) {
   }
 
   proc->cmd = args[0];
+  if (strcmp(proc->cmd, "echo") == 0) {
+    ReplaceExitStatusVariable(da_args);
+  }
+
   proc->args = args;
   proc->args[da_args->len] = NULL; 
 
@@ -441,6 +452,19 @@ int CleanupRedirection(Process *proc) {
   }
 
   return 0;
+}
+
+void ReplaceExitStatusVariable(DynamicArray* da) {
+  char** args = (char**)da->data;
+  char status_str[12];
+
+  sprintf(status_str, "%d", status);
+
+  for (size_t i = 0; i < da->len; i++) {
+    if (strcmp(args[i], "$?") == 0) {
+      strcpy(args[i], status_str);
+    }
+  }
 }
 
 void _PrintError(const char *func, int line, const char *format, ...) {
