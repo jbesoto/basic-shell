@@ -219,7 +219,7 @@ int ParseCommand(Process *proc, DynamicArray *da_args) {
         break;
 
       case kRedirectAppend:
-        if ((newfd = open(pathname, O_CREAT | O_TRUNC | O_APPEND, 0664)) < 0) {
+        if ((newfd = open(pathname, O_CREAT | O_WRONLY | O_APPEND, 0664)) < 0) {
           PrintError("failed open: %s: %s\n", pathname, strerror(errno));
           return -1;
         }
