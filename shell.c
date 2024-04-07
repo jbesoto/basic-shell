@@ -65,8 +65,6 @@ int main(void) {
       status = 1;
       continue;
     } else if (pid == 0) {
-      // TODO: Add signal handler for cleaning up process since atexit does
-      //       not execute functions if process terminates due to a signal
       Process *proc = InitProcess();
       if (!proc) {
         FreeDynamicArray(da_args);
@@ -74,18 +72,24 @@ int main(void) {
         exit(EXIT_FAILURE);
       }
 
-      // TODO: Add atexit(CleanupResources)
-
       if (ParseCommand(proc, da_args) < 0) {
         free(proc);
         FreeDynamicArray(da_args);
         exit(EXIT_FAILURE);
       }
 
+      execvp(proc->cmd, proc->args);
+      if (errno == ENOENT) {
+        PrintError("unrecognized command: %s\n", proc->cmd);
+      } else {
+        fprintf(stderr, "exec: %s\n", strerror(errno));
+      }
+
+      // exec failed
+      FreeDynamicArray(da_args);
       CleanupRedirection(proc);
       free(proc);
-      FreeDynamicArray(da_args);
-      exit(EXIT_SUCCESS);
+      exit(EXIT_FAILURE);
     } else {
       int wstatus;
       if (waitpid(pid, &wstatus, 0) < 0) {
