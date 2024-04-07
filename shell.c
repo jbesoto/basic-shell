@@ -2,27 +2,67 @@
  * @file shell.c
  *
  * @brief Basic Unix-like Shell Implementation
+ * 
+ * This shell implementation offers a minimalist environment for executing
+ * commands similar to traditional Unix shells. Features include:
  *
+ * - I/O Redirection: Handles `<`, `>`, `>>`, `2>`, and `&>` for redirecting
+ *   standard input, output, error streams, and appending to files. Redirection
+ *   symbols are expected to be surrounded by whitespace and can appear
+ *   anywhere in the command.
+ * - Environment: Utilizes a customizable prompt string, defaulting to a simple
+ *   format but can be overridden by the `PS1` environment variable. Special
+ *   characters in the prompt string are treated as normal text.
+ * - Built-in Commands: Supports basic navigation via `cd` and exiting the
+ *   shell using `exit`.
+ * - Shell Variable `$?`: Captures the exit status of the last executed command
+ *   or the signal number (with bit 7 set) if the process terminated due to a
+ *   signal.
+ * - Signal Handling: Ignores `^C` (SIGINT) at the shell level, allowing
+ *   interruption of child processes without exiting the shell.
+ * 
  * @author Juan Diego Becerra (jdb9056@nyu.edu)
  * @date   Apr 5, 2024
  */
 
 #include "shell.h"
 
+/**
+ * @brief Entry point of the shell program.
+ *
+ * Initializes the signal handling for SIGINT to ignore interruptions, and
+ * enters a loop to read and execute commands from the user. It supports
+ * built-in commands like 'cd' and 'exit', as well as external commands by
+ * forking child processes. Handles command line tokenization, redirections,
+ * and executes processes accordingly.
+ */
 int main(void) {
   char cmdline[kInputMax];
   char *ps1 = getenv("PS1");
 
   int status = 0;
-  
+
+  struct sigaction act, oldact;
+  act.sa_handler = sigint_handler;
+  sigemptyset(&act.sa_mask);
+  act.sa_flags = 0;
+  if (sigaction(SIGINT, &act, &oldact) < 0) {
+    perror("sigaction");
+    exit(EXIT_FAILURE);
+  }
+
   while (1) {
     ps1 ? printf("%s ", ps1) : ExpandPromptString();
 
     if (!fgets(cmdline, kInputMax, stdin)) {
+      if (errno = EINTR) {
+        clearerr(stdin);
+        continue;
+      }
       PrintError("%s\n", strerror(errno));
       continue;
     }
-    
+
     // Remove newline character
     cmdline[strlen(cmdline) - 1] = '\0';
 
@@ -65,6 +105,12 @@ int main(void) {
       status = 1;
       continue;
     } else if (pid == 0) {
+      // Restore original disposition for SIGINT
+      if (sigaction(SIGINT, &oldact, NULL) < 0) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+      }
+
       Process *proc = InitProcess();
       if (!proc) {
         FreeDynamicArray(da_args);
@@ -107,11 +153,19 @@ int main(void) {
       }
     }
 
-next_command:
+  next_command:
     FreeDynamicArray(da_args);
   }
 }
 
+/**
+ * @brief Expands and prints the shell prompt string.
+ *
+ * Dynamically generates the shell prompt based on the current user, hostname,
+ * and working directory, substituting placeholders with actual values. This
+ * function is used to provide a customizable and informative shell prompt to
+ * the user.
+ */
 void ExpandPromptString(void) {
   struct passwd *pwd;
   char cwd[kPathMax];
@@ -157,7 +211,20 @@ void ExpandPromptString(void) {
   fflush(stdout);
 }
 
-// This implementation does not treat text wrapped in quotes as single token
+/**
+ * @brief Tokenizes the command line input.
+ *
+ * Splits the given command line input into tokens based on whitespace. It does
+ * not treat text within quotes as a single token. The tokens are stored in a
+ * dynamic array, which is returned to the caller.
+ *
+ * @param cmdline The command line input to be tokenized.
+ *
+ * @return A pointer to a DynamicArray containing the tokens, or NULL if an
+ *         error occurs during tokenization.
+ *
+ * @note Text wrapped in quotes is not treated as a single token.
+ */
 DynamicArray *TokenizeCommandLine(char *cmdline) {
   DynamicArray *da_tokens = InitDynamicArray(kDefaultArraySize, sizeof(char *));
   if (!da_tokens) {
@@ -179,6 +246,23 @@ DynamicArray *TokenizeCommandLine(char *cmdline) {
   return da_tokens;
 }
 
+/**
+ * @brief Parses the command and its arguments for execution.
+ *
+ * Analyzes the tokens from the tokenized command line to set up the command
+ * and its arguments for execution. It handles redirections by modifying file
+ * descriptors as specified by the command. Also replaces the exit status
+ * variable with the actual status.
+ *
+ * @param proc    Pointer to the Process structure to be filled with the
+ *                command and its arguments.
+ * @param da_args Pointer to the DynamicArray containing the tokenized command
+ *                line.
+ * @param status  The exit status of the last executed command, for
+ *                substitution in the command line.
+ *
+ * @return 0 on success, or -1 if an error occurs, with errno set accordingly.
+ */
 int ParseCommand(Process *proc, DynamicArray *da_args, int status) {
   if (da_args->len == 0) {
     proc->cmd = "";
@@ -203,7 +287,7 @@ int ParseCommand(Process *proc, DynamicArray *da_args, int status) {
     switch (rtype) {
       case kRedirectIn:
         if ((newfd = open(pathname, O_RDONLY)) < 0) {
-          PrintError("failed open: %s: %s\n", pathname, strerror(errno));
+          PrintError("failed open: %s: %s", strerror(errno), pathname);
           return -1;
         }
         if (SetupRedirection(proc, newfd, rtype) < 0) {
@@ -283,11 +367,21 @@ int ParseCommand(Process *proc, DynamicArray *da_args, int status) {
   }
 
   proc->args = args;
-  proc->args[da_args->len] = NULL; 
+  proc->args[da_args->len] = NULL;
 
   return 0;
 }
 
+/**
+ * @brief Initializes a new process structure.
+ *
+ * Allocates and initializes a new Process structure, setting up the original
+ * standard file descriptors for later restoration. Used to manage redirections
+ * and execution state of a command.
+ *
+ * @return A pointer to the newly allocated Process structure, or NULL if an
+ *         error occurs during allocation or initialization.
+ */
 Process *InitProcess(void) {
   Process *proc = malloc(sizeof(Process));
   if (!proc) {
@@ -323,7 +417,20 @@ init_proc_error:
   return NULL;
 }
 
-// `newfd` for redirection is managed by the caller, who must close it after.
+/**
+ * @brief Sets up redirection for a process.
+ *
+ * Based on the specified redirection type, duplicates the new file descriptor
+ * to replace the standard input, output, or error streams of the process.
+ * Handles both individual and combined output/error redirections.
+ *
+ * @param proc  Pointer to the Process structure for which to set up
+ *              redirection.
+ * @param newfd The new file descriptor to use for the redirection.
+ * @param rtype The type of redirection to be applied.
+ *
+ * @return 0 on success, or -1 on error with errno set accordingly.
+ */
 int SetupRedirection(Process *proc, int newfd, RedirectType rtype) {
   if (!proc) {
     return 0;
@@ -387,6 +494,17 @@ redirect_error:
   return -1;
 }
 
+/**
+ * @brief Determines the type of redirection based on the operator.
+ *
+ * Analyzes the redirection operator provided as input and returns the
+ * corresponding redirection type.
+ *
+ * @param op The redirection operator as a string (e.g., ">", ">>", "<").
+ *
+ * @return The `RedirectType` enumeration value corresponding to the operator,
+ *         or kNone if the operator does not match any known redirection type.
+ */
 RedirectType GetRedirectType(const char *op) {
   if (strcmp(op, "<") == 0) {
     return kRedirectIn;
@@ -407,6 +525,17 @@ RedirectType GetRedirectType(const char *op) {
   return kNone;
 }
 
+/**
+ * @brief Cleans up redirections and restores original file descriptors.
+ *
+ * Closes any redirected file descriptors and restores the process's original
+ * standard input, output, and error streams to their state before redirection.
+ *
+ * @param proc Pointer to the Process structure whose redirections are to be
+ *             cleaned up.
+ *
+ * @return 0 on success, or -1 on error with errno set accordingly.
+ */
 int CleanupRedirection(Process *proc) {
   if (!proc) {
     return 0;
@@ -454,8 +583,18 @@ int CleanupRedirection(Process *proc) {
   return 0;
 }
 
-void ReplaceExitStatusVariable(DynamicArray* da_args, int status) {
-  char** args = (char**)da_args->data;
+/**
+ * @brief Replaces the exit status variable in the command arguments.
+ *
+ * Searches for the exit status variable `$?` in the command arguments and
+ * replaces it with the actual exit status of the last executed command.
+ *
+ * @param da_args Pointer to the DynamicArray containing the command arguments.
+ * @param status  The exit status of the last executed command to substitute
+ *                for `$?`.
+ */
+void ReplaceExitStatusVariable(DynamicArray *da_args, int status) {
+  char **args = (char **)da_args->data;
   char status_str[12];
 
   sprintf(status_str, "%d", status);
@@ -467,11 +606,31 @@ void ReplaceExitStatusVariable(DynamicArray* da_args, int status) {
   }
 }
 
-void _PrintError(const char *func, int line, const char *format, ...) {
+/**
+ * @brief Signal handler for SIGINT.
+ *
+ * Prints a newline upon a SIGINT is received.
+ *
+ * @param signum The signal number of the received signal, unused in this
+ *               handler.
+ */
+void sigint_handler(int signum __attribute__((unused))) { printf("\n"); }
+
+/**
+ * @brief Prints a formatted error message to stderr.
+ *
+ * A wrapper function that prints a formatted error message to standard error,
+ * including the function name and line number from where the error originated,
+ * improving debuggability.
+ *
+ * @param format The format string for the error message, followed by any
+ *               arguments needed for formatting, similar to printf.
+ */
+void _PrintError(const char *format, ...) {
   va_list args;
   va_start(args, format);
 
-  fprintf(stderr, "[%s: %d] shell: ", func, line);
+  fprintf(stderr, "shell: ");
   vfprintf(stderr, format, args);
 
   va_end(args);

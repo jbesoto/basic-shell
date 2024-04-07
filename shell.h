@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <pwd.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,6 +64,7 @@ DynamicArray *InitDynamicArray(size_t size, size_t type_size);
 int ResizeDynamicArray(DynamicArray *da, size_t new_size);
 
 // Utility Functions
-void _PrintError(const char *func, int line, const char *format, ...);
+void _PrintError(const char *format, ...);
+void sigint_handler(int signum);
 
 #endif  // SHELL_H_
